@@ -183,26 +183,59 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
     const finalPrice = stacked?.finalPrice ?? row.price;
     const totalHemat = calcTotalHemat(baseAmount, finalPrice);
 
+    const breakdownRows = (
+        <>
+            <CustomerModalRow label="Harga awal" value={formatRupiah(baseAmount)} />
+            <CustomerModalRow
+                label={`Potongan ${row.percent}%`}
+                value={`− ${formatRupiah(row.savings)}`}
+                valueClass="text-amber-200"
+            />
+            {stacked ? (
+                <>
+                    <CustomerModalRow
+                        label={`Setelah diskon ${row.percent}%`}
+                        value={formatRupiah(row.price)}
+                    />
+                    <CustomerModalRow
+                        label={`Potongan ${additionalPercent}% dari ${formatRupiah(row.price)}`}
+                        value={`− ${formatRupiah(stacked.additionalSavings)}`}
+                        valueClass="text-amber-200"
+                    />
+                </>
+            ) : null}
+            <div className="flex items-center justify-between gap-4 px-4 py-3.5 mt-1 rounded-xl border border-emerald-900/50 bg-emerald-950/25 md:py-4">
+                <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 md:text-xs">
+                    Harga akhir
+                </span>
+                <span className="text-lg font-semibold tabular-nums text-emerald-300 md:text-2xl">
+                    {formatRupiah(finalPrice)}
+                </span>
+            </div>
+        </>
+    );
+
     return (
         <div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"
+            className="fixed inset-0 z-50 flex justify-center bg-black/70 backdrop-blur-sm items-end md:items-center md:p-8"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="customer-modal-title"
+            aria-label="Rincian perhitungan harga"
             onClick={locked ? undefined : onClose}
         >
+            {/* Mobile: full-screen bottom sheet */}
             <div
-                className="flex flex-col w-full min-h-screen overflow-hidden border-neutral-700 bg-neutral-950 shadow-2xl rounded-t-2xl sm:h-auto sm:max-h-[92dvh] sm:max-w-md sm:rounded-2xl sm:border"
+                className="flex md:hidden flex-col w-full min-h-[100dvh] max-h-[100dvh] overflow-hidden bg-neutral-950 shadow-2xl rounded-t-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <header className="flex items-start justify-between gap-5 shrink-0 px-5 py-5 border-b border-neutral-800/60 sm:px-6">
+                <header className="flex items-start justify-between gap-5 shrink-0 px-5 py-5 border-b border-neutral-800/60">
                     <div className="min-w-0 pt-0.5">
                         <p className="text-[11px] font-medium tracking-[0.2em] uppercase text-neutral-500">
                             Rincian harga
                         </p>
                         <h2
                             id="customer-modal-title"
-                            className="mt-1.5 text-xl font-semibold tracking-tight text-white sm:text-2xl"
+                            className="mt-1.5 text-xl font-semibold tracking-tight text-white"
                         >
                             Perhitungan
                         </h2>
@@ -211,7 +244,7 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                                 <p className="mt-2 text-xs text-neutral-500">
                                     Harga final untuk Anda
                                 </p>
-                                <p className="mt-1 text-[10px] text-neutral-600 sm:hidden">
+                                <p className="mt-1 text-[10px] text-neutral-600">
                                     Staf: tahan ikon kunci 2 detik untuk keluar
                                 </p>
                             </>
@@ -230,39 +263,11 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                 </header>
 
                 <div className="flex flex-col flex-1 min-h-0">
-                    <div className="flex flex-col flex-1 min-h-0 justify-center px-5 py-4 sm:px-6">
-                        <div className="flex flex-col w-full max-w-sm gap-2.5 mx-auto">
-                            <CustomerModalRow label="Harga awal" value={formatRupiah(baseAmount)} />
-                            <CustomerModalRow
-                                label={`Potongan ${row.percent}%`}
-                                value={`− ${formatRupiah(row.savings)}`}
-                                valueClass="text-amber-200"
-                            />
-                            {stacked ? (
-                                <>
-                                    <CustomerModalRow
-                                        label={`Setelah diskon ${row.percent}%`}
-                                        value={formatRupiah(row.price)}
-                                    />
-                                    <CustomerModalRow
-                                        label={`Potongan ${additionalPercent}%`}
-                                        value={`− ${formatRupiah(stacked.additionalSavings)}`}
-                                        valueClass="text-amber-200"
-                                    />
-                                </>
-                            ) : null}
-                            <div className="flex items-center justify-between gap-4 px-4 py-3.5 mt-1 rounded-xl border border-emerald-900/50 bg-emerald-950/25">
-                                <span className="text-[11px] uppercase tracking-wider text-emerald-200/90">
-                                    Harga akhir
-                                </span>
-                                <span className="text-lg font-semibold tabular-nums text-emerald-300 sm:text-xl">
-                                    {formatRupiah(finalPrice)}
-                                </span>
-                            </div>
-                        </div>
+                    <div className="flex flex-col flex-1 min-h-0 justify-center px-5 py-4">
+                        <div className="flex flex-col w-full max-w-sm gap-2.5 mx-auto">{breakdownRows}</div>
                     </div>
 
-                    <div className="shrink-0 px-5 pb-6 pt-2 space-y-3 sm:px-6 sm:pb-8">
+                    <div className="shrink-0 px-5 pb-6 pt-2 space-y-3">
                         <p className="px-4 py-3 text-sm text-center rounded-xl bg-neutral-900/80 text-neutral-400">
                             {formatRupiah(baseAmount)} →{' '}
                             <span className="font-medium text-emerald-300">{formatRupiah(finalPrice)}</span>
@@ -274,7 +279,7 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                                     <span className="text-[11px] uppercase tracking-wider text-sky-200/90">
                                         Total hemat
                                     </span>
-                                    <span className="text-lg font-semibold tabular-nums text-sky-300 sm:text-xl">
+                                    <span className="text-lg font-semibold tabular-nums text-sky-300">
                                         {formatRupiah(totalHemat)}
                                     </span>
                                 </div>
@@ -287,6 +292,73 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                                 type="button"
                                 onClick={onClose}
                                 className="w-full py-3.5 text-sm font-semibold text-black bg-white rounded-full hover:bg-neutral-200 touch-manipulation"
+                            >
+                                Selesai
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Desktop: centered wide card */}
+            <div
+                className="hidden md:flex md:flex-col w-full max-w-3xl max-h-[min(40rem,90vh)] overflow-hidden border rounded-2xl border-neutral-700 bg-neutral-950 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <header className="flex items-start justify-between gap-6 shrink-0 px-8 py-6 border-b border-neutral-800/60">
+                    <div className="min-w-0">
+                        <p className="text-xs font-medium tracking-[0.2em] uppercase text-neutral-500">
+                            Rincian harga
+                        </p>
+                        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                            Perhitungan harga
+                        </h2>
+                        {locked ? (
+                            <p className="mt-2 text-sm text-neutral-500">
+                                Harga final untuk pelanggan · Staf: tahan ikon kunci 2 detik untuk keluar
+                            </p>
+                        ) : (
+                            <p className="mt-2 text-sm text-amber-200/70">
+                                Mode staf · klik Selesai atau di luar modal untuk keluar
+                            </p>
+                        )}
+                    </div>
+                    <CustomerLockButton
+                        locked={locked}
+                        unlockProgress={unlockProgress}
+                        onPointerDown={handleLockPointerDown}
+                        onPointerUp={handleLockPointerUp}
+                    />
+                </header>
+
+                <div className="grid flex-1 min-h-0 grid-cols-2 gap-8 px-8 py-6 overflow-y-auto">
+                    <div className="flex flex-col gap-3">{breakdownRows}</div>
+
+                    <div className="flex flex-col justify-center gap-4">
+                        <p className="px-5 py-4 text-base text-center rounded-xl bg-neutral-900/80 text-neutral-400">
+                            {formatRupiah(baseAmount)} →{' '}
+                            <span className="font-semibold text-emerald-300">{formatRupiah(finalPrice)}</span>
+                        </p>
+
+                        {totalHemat != null && totalHemat > 0 && (
+                            <div className="px-5 py-5 rounded-xl border border-sky-900/40 bg-sky-950/20">
+                                <div className="flex items-center justify-between gap-4">
+                                    <span className="text-xs uppercase tracking-wider text-sky-200/90">
+                                        Total hemat
+                                    </span>
+                                    <span className="text-2xl font-semibold tabular-nums text-sky-300">
+                                        {formatRupiah(totalHemat)}
+                                    </span>
+                                </div>
+                                <p className="mt-2 text-sm text-neutral-500">Potongan dari harga awal</p>
+                            </div>
+                        )}
+
+                        {!locked && (
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="w-full py-3.5 text-sm font-semibold text-black bg-white rounded-full hover:bg-neutral-200"
                             >
                                 Selesai
                             </button>
@@ -527,13 +599,13 @@ export default function CalculatePage() {
                             {activeRow && (
                                 <div className="p-4 mt-6 border rounded-xl border-amber-900/30 bg-amber-950/10">
                                     <p className="text-xs font-semibold tracking-widest uppercase text-amber-200/80">
-                                        Internal — diskon tambahan
+                                        Diskon Tambahan (Additional)
                                     </p>
-                                    <p className="mt-1 mb-3 text-xs leading-relaxed text-amber-200/50">
+                                    {/* <p className="mt-1 mb-3 text-xs leading-relaxed text-amber-200/50">
                                         Tidak ditampilkan ke pelanggan. Dari harga setelah −
                                         {activeRow.percent}% ({formatRupiah(activeRow.price)})
-                                    </p>
-                                    <div className="flex flex-wrap gap-2">
+                                    </p> */}
+                                    <div className="flex flex-wrap gap-2 mt-4">
                                         {DISCOUNT_STEPS.map((pct) => {
                                             const active = additionalPercent === pct;
                                             return (
@@ -556,17 +628,57 @@ export default function CalculatePage() {
                                     </div>
 
                                     {previewFinalPrice != null && (
-                                        <p className="mt-4 text-sm text-neutral-300">
-                                            Preview harga akhir:{' '}
-                                            <span className="font-medium text-emerald-300">
-                                                {formatRupiah(previewFinalPrice)}
-                                            </span>
-                                            {additionalPercent != null && (
-                                                <span className="block mt-1 text-neutral-500 sm:inline sm:mt-0 sm:ml-1">
-                                                    (−{activeRow.percent}% lalu −{additionalPercent}%)
+                                        <div className="p-3 mt-4 space-y-2 text-sm rounded-lg border border-neutral-800/80 bg-neutral-950/60">
+                                            <p className="text-xs font-semibold tracking-wider uppercase text-neutral-500">
+                                                Preview perhitungan
+                                            </p>
+                                            <div className="flex justify-between gap-3 tabular-nums">
+                                                <span className="text-neutral-400">Harga awal</span>
+                                                <span className="text-white">{formatRupiah(baseAmount)}</span>
+                                            </div>
+                                            <div className="flex justify-between gap-3 tabular-nums text-amber-200/90">
+                                                <span>−{activeRow.percent}%</span>
+                                                <span>− {formatRupiah(activeRow.savings)}</span>
+                                            </div>
+                                            <div className="flex justify-between gap-3 tabular-nums">
+                                                <span className="text-neutral-400">
+                                                    Setelah −{activeRow.percent}%
                                                 </span>
+                                                <span className="font-medium text-white">
+                                                    {formatRupiah(activeRow.price)}
+                                                </span>
+                                            </div>
+                                            {stacked && additionalPercent != null ? (
+                                                <>
+                                                    <div className="flex justify-between gap-3 tabular-nums text-amber-200/90">
+                                                        <span className="text-left leading-snug">
+                                                            −{additionalPercent}% dari{' '}
+                                                            {formatRupiah(activeRow.price)}
+                                                        </span>
+                                                        <span className="shrink-0">
+                                                            − {formatRupiah(stacked.additionalSavings)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between gap-3 pt-2 tabular-nums border-t border-neutral-800">
+                                                        <span className="font-medium text-neutral-200">
+                                                            Harga akhir
+                                                        </span>
+                                                        <span className="font-semibold text-emerald-300">
+                                                            {formatRupiah(previewFinalPrice)}
+                                                        </span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="flex justify-between gap-3 pt-2 tabular-nums border-t border-neutral-800">
+                                                    <span className="font-medium text-neutral-200">
+                                                        Harga akhir
+                                                    </span>
+                                                    <span className="font-semibold text-emerald-300">
+                                                        {formatRupiah(activeRow.price)}
+                                                    </span>
+                                                </div>
                                             )}
-                                        </p>
+                                        </div>
                                     )}
 
                                     <button
