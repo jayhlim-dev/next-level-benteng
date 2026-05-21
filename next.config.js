@@ -40,6 +40,20 @@ const nextConfig = {
       },
     ];
   },
+
+  headers() {
+    return [
+      {
+        source: '/images/asset/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
