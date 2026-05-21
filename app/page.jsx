@@ -1,63 +1,67 @@
 import Link from 'next/link';
-import { Card } from 'components/card';
-import { ContextAlert } from 'components/context-alert';
-import { Markdown } from 'components/markdown';
-import { RandomQuote } from 'components/random-quote';
-import { getNetlifyContext } from 'utils';
+import { RapaportShell } from '../components/rapaport-shell';
+import { listJsonFiles } from '../lib/storage.js';
 
-const contextExplainer = `
-The card below is rendered on the server based on the value of \`process.env.CONTEXT\` 
-([docs](https://docs.netlify.com/configure-builds/environment-variables/#build-metadata)):
-`;
+export const dynamic = 'force-dynamic';
 
-const preDynamicContentExplainer = `
-The card content below is fetched by the client-side from \`/quotes/random\` (see file \`app/quotes/random/route.js\`) with a different quote shown on each page load:
-`;
+export default function HomePage() {
+    const files = listJsonFiles();
+    const count = files.length;
 
-const ctx = getNetlifyContext();
+    const features = [
+        {
+            href: '/upload',
+            title: 'Upload',
+            desc: 'Upload Rapaport PDF or images and auto-generate structured JSON.'
+        },
+        {
+            href: '/view',
+            title: 'View',
+            desc: 'Browse all generated JSON files with pretty-printed previews.'
+        },
+        {
+            href: '/search',
+            title: 'Search',
+            desc: 'Look up diamond prices by carat, color, and clarity.'
+        },
+        {
+            href: '/calculate',
+            title: 'Calculate',
+            desc: 'Enter a Rupiah price and see 5%–40% discount breakdown.'
+        },
+        {
+            href: '/delete',
+            title: 'Delete',
+            desc: 'Remove stored JSON files from local /data storage.'
+        }
+    ];
 
-export default function Page() {
     return (
-        <div className="flex flex-col gap-12 sm:gap-16">
-            <section>
-                <ContextAlert className="mb-6" />
-                <h1 className="mb-4">Netlify Platform Starter – Next.js</h1>
-                <p className="mb-6 text-lg">
-                    Deploy the latest version of Next.js — including Turbopack, React Compiler, and the new caching APIs
-                    — on Netlify in seconds. No configuration or custom adapter required.
-                </p>
-                <Link href="https://docs.netlify.com/frameworks/next-js/overview/" className="btn btn-lg sm:min-w-64">
-                    Read the Docs
-                </Link>
-            </section>
-            {!!ctx && (
-                <section className="flex flex-col gap-4">
-                    <Markdown content={contextExplainer} />
-                    <RuntimeContextCard />
-                </section>
-            )}
-            <section className="flex flex-col gap-4">
-                <Markdown content={preDynamicContentExplainer} />
-                <RandomQuote />
-            </section>
-        </div>
-    );
-}
+        <RapaportShell
+            title="Diamond Pricing Intelligence"
+            subtitle="Extract Rapaport pricing tables from PDFs and images, store them as JSON, and search prices instantly."
+        >
+            <div className="flex items-center gap-3 mb-10">
+                <span className="inline-flex items-center px-3 py-1 text-xs font-medium border rounded-full border-neutral-700 text-neutral-400">
+                    {count} JSON {count === 1 ? 'file' : 'files'} in /data
+                </span>
+            </div>
 
-function RuntimeContextCard() {
-    const title = `Netlify Context: running in ${ctx} mode.`;
-    if (ctx === 'dev') {
-        return (
-            <Card title={title}>
-                <p>Next.js will rebuild any page you navigate to, including static pages.</p>
-            </Card>
-        );
-    } else {
-        const now = new Date().toISOString();
-        return (
-            <Card title={title}>
-                <p>This page was statically-generated at build time ({now}).</p>
-            </Card>
-        );
-    }
+            <div className="grid gap-4 sm:grid-cols-2">
+                {features.map(({ href, title, desc }) => (
+                    <Link
+                        key={href}
+                        href={href}
+                        className="block p-6 no-underline transition border rounded-2xl border-neutral-800 bg-neutral-950/50 hover:border-neutral-600 hover:bg-neutral-900/50 group"
+                    >
+                        <h2 className="text-xl font-medium text-white group-hover:text-white">{title}</h2>
+                        <p className="mt-2 text-sm leading-relaxed text-neutral-500">{desc}</p>
+                        <span className="inline-block mt-4 text-xs tracking-wide text-neutral-600 group-hover:text-neutral-400">
+                            Open →
+                        </span>
+                    </Link>
+                ))}
+            </div>
+        </RapaportShell>
+    );
 }

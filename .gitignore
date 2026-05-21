@@ -38,3 +38,7 @@ yarn-error.log*
 
 # Local Netlify folder
 .netlify
+
+# Rapaport Reader uploads (keep directory via .gitkeep)
+/uploads/*
+!/uploads/.gitkeep
