@@ -105,17 +105,17 @@ function CustomerLockButton({ locked, unlockProgress, onPointerDown, onPointerUp
 function InvoiceLine({ label, value, variant = 'default' }) {
     const valueClass =
         variant === 'discount'
-            ? 'text-neutral-600'
+            ? 'text-base text-neutral-600'
             : variant === 'total'
-              ? 'text-lg font-semibold text-neutral-900 sm:text-xl'
-              : 'text-neutral-900 font-medium';
+              ? 'text-xl font-semibold text-neutral-900 sm:text-2xl'
+              : 'text-base font-medium text-neutral-900';
 
-    const labelClass = variant === 'total' ? 'text-sm font-semibold text-neutral-900' : 'text-sm text-neutral-600';
+    const labelClass = variant === 'total' ? 'text-base font-semibold text-neutral-900' : 'text-base text-neutral-600';
 
     return (
         <div
-            className={`flex items-start justify-between gap-3 px-3 py-3 sm:gap-6 sm:px-4 sm:py-3.5 ${
-                variant === 'total' ? 'bg-neutral-50' : ''
+            className={`flex items-start justify-between gap-3 px-4 py-4 sm:gap-6 sm:px-5 sm:py-4 ${
+                variant === 'total' ? 'bg-neutral-50' : variant === 'discount' ? 'bg-neutral-50/60 pl-7 sm:pl-9' : ''
             }`}
         >
             <span className={`min-w-0 flex-1 leading-snug ${labelClass}`}>{label}</span>
@@ -126,9 +126,47 @@ function InvoiceLine({ label, value, variant = 'default' }) {
     );
 }
 
+function InvoiceExpandableSubtotal({ label, value, expanded, onToggle, discountLabel, discountValue }) {
+    return (
+        <>
+            {expanded ? <InvoiceLine label={discountLabel} value={discountValue} variant="discount" /> : null}
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={expanded}
+                className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left transition-colors sm:gap-6 sm:px-5 sm:py-4 hover:bg-neutral-50 touch-manipulation"
+            >
+                <span className="flex min-w-0 flex-1 items-start gap-2 leading-snug">
+                    <svg
+                        className={`mt-1 h-5 w-5 shrink-0 text-neutral-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden
+                    >
+                        <path
+                            fillRule="evenodd"
+                            d="M7.21 14.77a.75.75 0 01.02-1.06L10.94 10 7.23 6.29a.75.75 0 111.06-1.06l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-.02z"
+                            clipRule="evenodd"
+                        />
+                    </svg>
+                    <span className="text-base text-neutral-600">{label}</span>
+                </span>
+
+                {/* hidden value */}
+                {/* <span className="shrink-0 max-w-[55%] tabular-nums text-right text-base font-medium leading-snug text-neutral-900 sm:max-w-none">
+                    {value}
+                </span> */}
+            </button>
+        </>
+    );
+}
+
 /** Customer-facing — no Tutup; lock prevents accidental dismiss for pelanggan */
 function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
     const [locked, setLocked] = useState(true);
+    const [showSummary, setShowSummary] = useState(false);
+    const [expandedPrimaryDiscount, setExpandedPrimaryDiscount] = useState(false);
+    const [expandedAdditionalDiscount, setExpandedAdditionalDiscount] = useState(false);
     const [unlockProgress, setUnlockProgress] = useState(0);
     const unlockTimerRef = useRef(null);
     const unlockIntervalRef = useRef(null);
@@ -227,16 +265,23 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
     const invoiceBody = (
         <div className="overflow-hidden border rounded-lg border-neutral-200 divide-y divide-neutral-100">
             <InvoiceLine label="Harga awal" value={formatRupiah(baseAmount)} />
-            <InvoiceLine label={`Diskon ${row.percent}%`} value={`− ${formatRupiah(row.savings)}`} variant="discount" />
+            <InvoiceExpandableSubtotal
+                label={`Subtotal setelah diskon ${row.percent}%`}
+                value={formatRupiah(row.price)}
+                expanded={expandedPrimaryDiscount}
+                onToggle={() => setExpandedPrimaryDiscount((v) => !v)}
+                discountLabel={`Diskon ${row.percent}%`}
+                discountValue={`− ${formatRupiah(row.savings)}`}
+            />
             {stacked ? (
-                <>
-                    <InvoiceLine label={`Subtotal setelah diskon ${row.percent}%`} value={formatRupiah(row.price)} />
-                    <InvoiceLine
-                        label={`Diskon ${additionalPercent}% dari ${formatRupiah(row.price)}`}
-                        value={`− ${formatRupiah(stacked.additionalSavings)}`}
-                        variant="discount"
-                    />
-                </>
+                <InvoiceExpandableSubtotal
+                    label={`Subtotal setelah diskon ${additionalPercent}%`}
+                    value={formatRupiah(finalPrice)}
+                    expanded={expandedAdditionalDiscount}
+                    onToggle={() => setExpandedAdditionalDiscount((v) => !v)}
+                    discountLabel={`Diskon ${additionalPercent}% dari ${formatRupiah(row.price)}`}
+                    discountValue={`− ${formatRupiah(stacked.additionalSavings)}`}
+                />
             ) : null}
             <InvoiceLine label="Total" value={formatRupiah(finalPrice)} variant="total" />
         </div>
@@ -256,7 +301,9 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                 </p>
                 <div className="w-full min-w-0 px-3 py-3 rounded-lg border sm:px-4 sm:py-3 bg-neutral-50 border-neutral-200">
                     <div className="flex flex-col items-center gap-1 text-center sm:flex-row sm:justify-center sm:gap-2 text-neutral-600">
-                        <span className="max-w-full text-xs tabular-nums break-all sm:text-sm">{formatRupiah(baseAmount)}</span>
+                        <span className="max-w-full text-xs tabular-nums break-all sm:text-sm">
+                            {formatRupiah(baseAmount)}
+                        </span>
                         <span className="text-neutral-400 shrink-0" aria-hidden="true">
                             →
                         </span>
@@ -270,7 +317,7 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
             {totalHemat != null && totalHemat > 0 && (
                 <div className="w-full min-w-0 px-3 py-3 rounded-lg border sm:px-4 sm:py-4 border-blue-100 bg-blue-50/80">
                     <div className="flex flex-col gap-1 min-w-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                        <span className="text-sm font-medium text-blue-900">Total hemat</span>
+                        <span className="text-sm font-medium text-blue-900">Total Potongan</span>
                         <span className="text-lg font-semibold tabular-nums break-all sm:text-right sm:text-xl text-blue-700">
                             {formatRupiah(totalHemat)}
                         </span>
@@ -325,7 +372,6 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                 </header>
 
                 <div className="flex flex-col flex-1 min-h-0 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">
-                   
                     <div className="min-w-0 pt-0.5 mb-5 xl:hidden">
                         <h2
                             id="customer-modal-title"
@@ -335,10 +381,22 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                         </h2>
                         {staffHint}
                     </div>
-                   
+
                     <div className="grid flex-1 gap-6 min-w-0 md:grid-cols-5 md:gap-8">
-                        <div className="min-w-0 md:col-span-3">{invoiceBody}</div>
-                        <div className="flex flex-col justify-center min-w-0 md:col-span-2">{invoiceSummary}</div>
+                        <div className={`min-w-0 space-y-4 ${showSummary ? 'md:col-span-3' : 'md:col-span-5'}`}>
+                            {invoiceBody}
+                            <button
+                                type="button"
+                                onClick={() => setShowSummary((v) => !v)}
+                                aria-expanded={showSummary}
+                                className="w-full py-3 text-base font-medium rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 touch-manipulation"
+                            >
+                                {showSummary ? 'Sembunyikan Rincian' : 'Tampilkan Rincian'}
+                            </button>
+                        </div>
+                        {showSummary ? (
+                            <div className="flex flex-col justify-center min-w-0 md:col-span-2">{invoiceSummary}</div>
+                        ) : null}
                     </div>
                 </div>
 
