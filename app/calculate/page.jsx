@@ -117,12 +117,16 @@ function calcBeautifulNumberInfo(calculatedTotal, customAmount) {
     return { savings, percent, sameOrHigher: false };
 }
 
-function TotalPriceDisplay({ calculatedTotal, displayTotal, beautifulInfo }) {
+function TotalPriceDisplay({ calculatedTotal, displayTotal, beautifulInfo, dark = false }) {
     const hasBeautifulDiscount = beautifulInfo && !beautifulInfo.sameOrHigher;
 
     if (!hasBeautifulDiscount) {
         return (
-            <span className="shrink-0 max-w-[55%] tabular-nums text-right text-xl font-semibold leading-snug text-neutral-900 sm:max-w-none sm:text-2xl">
+            <span
+                className={`shrink-0 max-w-[55%] tabular-nums text-right text-xl font-semibold leading-snug sm:max-w-none sm:text-2xl ${
+                    dark ? 'text-emerald-50' : 'text-neutral-900'
+                }`}
+            >
                 {formatRupiah(calculatedTotal)}
             </span>
         );
@@ -130,14 +134,26 @@ function TotalPriceDisplay({ calculatedTotal, displayTotal, beautifulInfo }) {
 
     return (
         <div className="flex shrink-0 max-w-[55%] flex-col items-end gap-1 sm:max-w-none">
-            <span className="tabular-nums text-sm leading-snug text-neutral-400 line-through">
+            <span
+                className={`tabular-nums text-sm leading-snug line-through ${
+                    dark ? 'text-emerald-400/80' : 'text-neutral-400'
+                }`}
+            >
                 {formatRupiah(calculatedTotal)}
             </span>
             <div className="flex flex-wrap items-center justify-end gap-2">
-                <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-emerald-800">
+                <span
+                    className={`rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums ${
+                        dark ? 'bg-emerald-400/25 text-emerald-100' : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                >
                     −{beautifulInfo.percent}%
                 </span>
-                <span className="tabular-nums text-xl font-semibold leading-snug text-neutral-900 sm:text-2xl">
+                <span
+                    className={`tabular-nums text-xl font-semibold leading-snug sm:text-2xl ${
+                        dark ? 'text-emerald-50' : 'text-neutral-900'
+                    }`}
+                >
                     {formatRupiah(displayTotal)}
                 </span>
             </div>
@@ -178,16 +194,16 @@ function InvoiceBeautifulTotal({
     };
 
     return (
-        <>
+        <div className="overflow-hidden rounded-b-lg border border-emerald-200 bg-emerald-950">
             <button
                 type="button"
                 onClick={onToggle}
                 aria-expanded={expanded}
-                className="flex w-full items-start justify-between gap-3 bg-neutral-50 px-4 py-4 text-left transition-colors sm:gap-6 sm:px-5 sm:py-4 hover:bg-neutral-100 touch-manipulation"
+                className="flex w-full items-start justify-between gap-3 bg-emerald-900 px-4 py-4 text-left transition-colors hover:bg-emerald-900 touch-manipulation sm:gap-6 sm:px-5 sm:py-4"
             >
                 <span className="flex min-w-0 flex-1 items-start gap-2 leading-snug">
                     <svg
-                        className={`mt-1 h-5 w-5 shrink-0 text-neutral-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                        className={`mt-1 h-5 w-5 shrink-0 text-emerald-300 transition-transform ${expanded ? 'rotate-90' : ''}`}
                         viewBox="0 0 20 20"
                         fill="currentColor"
                         aria-hidden
@@ -198,16 +214,17 @@ function InvoiceBeautifulTotal({
                             clipRule="evenodd"
                         />
                     </svg>
-                    <span className="text-base font-semibold text-neutral-900">Total</span>
+                    <span className="text-base font-semibold text-emerald-50">Total</span>
                 </span>
                 <TotalPriceDisplay
                     calculatedTotal={calculatedTotal}
                     displayTotal={displayTotal}
                     beautifulInfo={beautifulInfo}
+                    dark
                 />
             </button>
             {expanded ? (
-                <div className="space-y-3 border-t border-neutral-100 bg-neutral-50/80 px-4 py-4 sm:px-5">
+                <div className="space-y-3 border-t border-emerald-200 bg-white px-4 py-4 sm:px-5">
                     <div>
                         <p className="text-xs font-semibold tracking-wide uppercase text-neutral-500">Potongan Tambahan</p>
                         <p className="mt-1 text-xs text-neutral-500">Potongan dari total di atas</p>
@@ -248,13 +265,13 @@ function InvoiceBeautifulTotal({
                             e.stopPropagation();
                             onSubmit();
                         }}
-                        className="w-full py-2.5 text-sm font-medium text-white rounded-lg bg-neutral-900 hover:bg-neutral-800 touch-manipulation"
+                        className="w-full touch-manipulation rounded-lg bg-emerald-900 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
                     >
                         Terapkan
                     </button>
                 </div>
             ) : null}
-        </>
+        </div>
     );
 }
 
@@ -512,14 +529,14 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
             </div>
 
             {totalHemat != null && totalHemat > 0 && (
-                <div className="w-full min-w-0 rounded-lg border border-blue-100 bg-blue-50/80 px-4 py-4 sm:px-4 sm:py-4">
+                <div className="w-full min-w-0 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4 sm:px-4 sm:py-4">
                     <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                        <span className="text-base font-medium text-blue-900 sm:text-sm">Total Potongan</span>
-                        <span className="break-all text-2xl font-semibold tabular-nums text-blue-700 sm:text-right sm:text-xl">
+                        <span className="text-base font-medium text-emerald-900 sm:text-sm">Total Potongan</span>
+                        <span className="break-all text-2xl font-semibold tabular-nums text-emerald-800 sm:text-right sm:text-xl">
                             {formatRupiah(totalHemat)}
                         </span>
                     </div>
-                    <p className="mt-1.5 text-sm text-blue-800/70 sm:text-xs">Potongan dari harga awal</p>
+                    <p className="mt-1.5 text-sm text-emerald-800/80 sm:text-xs">Potongan dari harga awal</p>
                 </div>
             )}
         </div>
@@ -586,7 +603,7 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                                 type="button"
                                 onClick={() => setShowSummary((v) => !v)}
                                 aria-expanded={showSummary}
-                                className="w-full touch-manipulation rounded-lg border border-neutral-200 bg-neutral-50 py-2.5 text-base font-medium text-neutral-700 hover:bg-neutral-100"
+                                className="w-full touch-manipulation rounded-lg border py-2.5 text-base font-medium"
                             >
                                 {showSummary ? 'Sembunyikan Rincian' : 'Tampilkan Rincian'}
                             </button>
