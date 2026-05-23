@@ -1,13 +1,15 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { RapaportShell } from '../../components/rapaport-shell';
 import { BrandLogo } from '../../components/brand-logo';
 import { CALC_COVER_BG } from '../../lib/hero-assets';
 import {
     digitsFromRupiahInput,
     normalizeDigitInput,
+    countDigitsBefore,
+    rupiahInputCursorAfterDigits,
     formatRupiah,
     formatRupiahDigitsFromRaw,
     rawDigitsToAmount,
@@ -102,6 +104,160 @@ function CustomerLockButton({ locked, unlockProgress, onPointerDown, onPointerUp
     );
 }
 
+/** Extra discount from calculated total to staff-entered beautiful number */
+function calcBeautifulNumberInfo(calculatedTotal, customAmount) {
+    const base = Number(calculatedTotal);
+    const custom = Number(customAmount);
+    if (Number.isNaN(base) || Number.isNaN(custom) || base <= 0 || custom <= 0) return null;
+    if (custom >= base) {
+        return { savings: 0, percent: 0, sameOrHigher: true };
+    }
+    const savings = base - custom;
+    const percent = Math.round((savings / base) * 1000) / 10;
+    return { savings, percent, sameOrHigher: false };
+}
+
+function TotalPriceDisplay({ calculatedTotal, displayTotal, beautifulInfo }) {
+    const hasBeautifulDiscount = beautifulInfo && !beautifulInfo.sameOrHigher;
+
+    if (!hasBeautifulDiscount) {
+        return (
+            <span className="shrink-0 max-w-[55%] tabular-nums text-right text-xl font-semibold leading-snug text-neutral-900 sm:max-w-none sm:text-2xl">
+                {formatRupiah(calculatedTotal)}
+            </span>
+        );
+    }
+
+    return (
+        <div className="flex shrink-0 max-w-[55%] flex-col items-end gap-1 sm:max-w-none">
+            <span className="tabular-nums text-sm leading-snug text-neutral-400 line-through">
+                {formatRupiah(calculatedTotal)}
+            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-emerald-800">
+                    −{beautifulInfo.percent}%
+                </span>
+                <span className="tabular-nums text-xl font-semibold leading-snug text-neutral-900 sm:text-2xl">
+                    {formatRupiah(displayTotal)}
+                </span>
+            </div>
+        </div>
+    );
+}
+
+function InvoiceBeautifulTotal({
+    calculatedTotal,
+    displayTotal,
+    expanded,
+    onToggle,
+    beautifulDigits,
+    onBeautifulChange,
+    onSubmit,
+    beautifulInfo,
+}) {
+    const beautifulInputRef = useRef(null);
+    const pendingCursorRef = useRef(null);
+
+    useLayoutEffect(() => {
+        const el = beautifulInputRef.current;
+        const pos = pendingCursorRef.current;
+        if (el == null || pos == null) return;
+        el.setSelectionRange(pos, pos);
+        pendingCursorRef.current = null;
+    }, [beautifulDigits]);
+
+    const handleBeautifulInputChange = (e) => {
+        const input = e.target;
+        const digits = normalizeDigitInput(digitsFromRupiahInput(input.value));
+        if (digits.length > MAX_INPUT_DIGITS) return;
+
+        const formatted = formatRupiahDigitsFromRaw(digits);
+        const digitsBefore = countDigitsBefore(input.value, input.selectionStart ?? input.value.length);
+        pendingCursorRef.current = rupiahInputCursorAfterDigits(formatted, digitsBefore);
+        onBeautifulChange(digits);
+    };
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={expanded}
+                className="flex w-full items-start justify-between gap-3 bg-neutral-50 px-4 py-4 text-left transition-colors sm:gap-6 sm:px-5 sm:py-4 hover:bg-neutral-100 touch-manipulation"
+            >
+                <span className="flex min-w-0 flex-1 items-start gap-2 leading-snug">
+                    <svg
+                        className={`mt-1 h-5 w-5 shrink-0 text-neutral-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden
+                    >
+                        <path
+                            fillRule="evenodd"
+                            d="M7.21 14.77a.75.75 0 01.02-1.06L10.94 10 7.23 6.29a.75.75 0 111.06-1.06l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-.02z"
+                            clipRule="evenodd"
+                        />
+                    </svg>
+                    <span className="text-base font-semibold text-neutral-900">Total</span>
+                </span>
+                <TotalPriceDisplay
+                    calculatedTotal={calculatedTotal}
+                    displayTotal={displayTotal}
+                    beautifulInfo={beautifulInfo}
+                />
+            </button>
+            {expanded ? (
+                <div className="space-y-3 border-t border-neutral-100 bg-neutral-50/80 px-4 py-4 sm:px-5">
+                    <div>
+                        <p className="text-xs font-semibold tracking-wide uppercase text-neutral-500">Potongan Tambahan</p>
+                        <p className="mt-1 text-xs text-neutral-500">Potongan dari total di atas</p>
+                    </div>
+                    <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">
+                            Rp
+                        </span>
+                        <input
+                            ref={beautifulInputRef}
+                            type="text"
+                            inputMode="numeric"
+                            value={beautifulDigits ? formatRupiahDigitsFromRaw(beautifulDigits) : ''}
+                            onChange={handleBeautifulInputChange}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    onSubmit();
+                                }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder={formatRupiahDigitsFromRaw(String(calculatedTotal))}
+                            className="w-full select-text rounded-lg border border-neutral-200 bg-white py-2.5 pl-9 pr-3 text-right font-mono text-base tabular-nums text-neutral-900 shadow-sm focus:border-neutral-400 focus:outline-none"
+                            aria-label="Beautiful number"
+                        />
+                    </div>
+                    {/* {beautifulInfo && !beautifulInfo.sameOrHigher ? (
+                        <p className="text-xs tabular-nums text-amber-900">
+                            Potongan tambahan{' '}
+                            <span className="font-semibold">−{beautifulInfo.percent}%</span>
+                            {' · '}
+                            <span className="font-semibold">− {formatRupiah(beautifulInfo.savings)}</span>
+                        </p>
+                    ) : null} */}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSubmit();
+                        }}
+                        className="w-full py-2.5 text-sm font-medium text-white rounded-lg bg-neutral-900 hover:bg-neutral-800 touch-manipulation"
+                    >
+                        Terapkan
+                    </button>
+                </div>
+            ) : null}
+        </>
+    );
+}
+
 function InvoiceLine({ label, value, variant = 'default' }) {
     const valueClass =
         variant === 'discount'
@@ -167,6 +323,8 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
     const [showSummary, setShowSummary] = useState(false);
     const [expandedPrimaryDiscount, setExpandedPrimaryDiscount] = useState(false);
     const [expandedAdditionalDiscount, setExpandedAdditionalDiscount] = useState(false);
+    const [expandedBeautifulNumber, setExpandedBeautifulNumber] = useState(false);
+    const [beautifulDigits, setBeautifulDigits] = useState('');
     const [unlockProgress, setUnlockProgress] = useState(0);
     const unlockTimerRef = useRef(null);
     const unlockIntervalRef = useRef(null);
@@ -255,12 +413,43 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
         }
     };
 
-    if (!row || baseAmount == null) return null;
+    const stacked =
+        row && additionalPercent != null ? applyAdditionalDiscount(row.price, additionalPercent) : null;
+    const finalPrice = stacked?.finalPrice ?? row?.price ?? null;
 
-    const stacked = additionalPercent != null ? applyAdditionalDiscount(row.price, additionalPercent) : null;
+    useEffect(() => {
+        setBeautifulDigits('');
+        setExpandedBeautifulNumber(false);
+    }, [finalPrice]);
 
-    const finalPrice = stacked?.finalPrice ?? row.price;
-    const totalHemat = calcTotalHemat(baseAmount, finalPrice);
+    if (!row || baseAmount == null || finalPrice == null) return null;
+
+    const beautifulAmount = rawDigitsToAmount(beautifulDigits);
+    const displayTotal = beautifulAmount ?? finalPrice;
+    const beautifulInfo =
+        beautifulDigits !== '' && beautifulAmount != null
+            ? calcBeautifulNumberInfo(finalPrice, beautifulAmount)
+            : null;
+    const totalHemat = calcTotalHemat(baseAmount, displayTotal);
+
+    const handleToggleBeautiful = () => {
+        setExpandedBeautifulNumber((open) => {
+            if (!open && beautifulDigits === '') {
+                setBeautifulDigits(String(finalPrice));
+            }
+            return !open;
+        });
+    };
+
+    const handleSubmitBeautiful = () => {
+        const amount = rawDigitsToAmount(beautifulDigits);
+        if (amount == null || beautifulDigits === '') {
+            setBeautifulDigits('');
+        } else {
+            setBeautifulDigits(String(amount));
+        }
+        setExpandedBeautifulNumber(false);
+    };
 
     const invoiceBody = (
         <div className="overflow-hidden border rounded-lg border-neutral-200 divide-y divide-neutral-100">
@@ -283,7 +472,16 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                     discountValue={`− ${formatRupiah(stacked.additionalSavings)}`}
                 />
             ) : null}
-            <InvoiceLine label="Total" value={formatRupiah(finalPrice)} variant="total" />
+            <InvoiceBeautifulTotal
+                calculatedTotal={finalPrice}
+                displayTotal={displayTotal}
+                expanded={expandedBeautifulNumber}
+                onToggle={handleToggleBeautiful}
+                beautifulDigits={beautifulDigits}
+                onBeautifulChange={setBeautifulDigits}
+                onSubmit={handleSubmitBeautiful}
+                beautifulInfo={beautifulInfo}
+            />
         </div>
     );
 
@@ -293,64 +491,63 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
             : `diskon ${row.percent}%`;
 
     const invoiceSummary = (
-        <div className="min-w-0 space-y-4">
+        <div className="min-w-0 space-y-3">
             <div className="min-w-0">
-                {/* <p className="text-sm font-medium text-neutral-800">Dari mana angka ini?</p> */}
-                <p className="mt-1 mb-3 text-xs leading-relaxed text-neutral-500">
+                <p className="mb-2 text-sm leading-relaxed text-neutral-500 sm:text-xs">
                     Harga awal dari input staf, lalu harga akhir setelah {discountSummary}.
                 </p>
-                <div className="w-full min-w-0 px-3 py-3 rounded-lg border sm:px-4 sm:py-3 bg-neutral-50 border-neutral-200">
-                    <div className="flex flex-col items-center gap-1 text-center sm:flex-row sm:justify-center sm:gap-2 text-neutral-600">
-                        <span className="max-w-full text-xs tabular-nums break-all sm:text-sm">
+                <div className="w-full min-w-0 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-4 sm:px-4 sm:py-3">
+                    <div className="flex flex-col items-center gap-2 text-center text-neutral-600 sm:flex-row sm:justify-center sm:gap-2">
+                        <span className="max-w-full break-all text-lg tabular-nums sm:text-sm">
                             {formatRupiah(baseAmount)}
                         </span>
-                        <span className="text-neutral-400 shrink-0" aria-hidden="true">
+                        <span className="shrink-0 text-lg text-neutral-400 sm:text-base" aria-hidden="true">
                             →
                         </span>
-                        <span className="max-w-full text-xs font-semibold tabular-nums break-all sm:text-sm text-neutral-900">
-                            {formatRupiah(finalPrice)}
+                        <span className="max-w-full break-all text-xl font-semibold tabular-nums text-neutral-900 sm:text-sm">
+                            {formatRupiah(displayTotal)}
                         </span>
                     </div>
                 </div>
             </div>
 
             {totalHemat != null && totalHemat > 0 && (
-                <div className="w-full min-w-0 px-3 py-3 rounded-lg border sm:px-4 sm:py-4 border-blue-100 bg-blue-50/80">
-                    <div className="flex flex-col gap-1 min-w-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                        <span className="text-sm font-medium text-blue-900">Total Potongan</span>
-                        <span className="text-lg font-semibold tabular-nums break-all sm:text-right sm:text-xl text-blue-700">
+                <div className="w-full min-w-0 rounded-lg border border-blue-100 bg-blue-50/80 px-4 py-4 sm:px-4 sm:py-4">
+                    <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        <span className="text-base font-medium text-blue-900 sm:text-sm">Total Potongan</span>
+                        <span className="break-all text-2xl font-semibold tabular-nums text-blue-700 sm:text-right sm:text-xl">
                             {formatRupiah(totalHemat)}
                         </span>
                     </div>
-                    <p className="mt-1.5 text-xs text-blue-800/70">Potongan dari harga awal</p>
+                    <p className="mt-1.5 text-sm text-blue-800/70 sm:text-xs">Potongan dari harga awal</p>
                 </div>
             )}
         </div>
     );
 
     const staffHint = locked ? (
-        <p className="mt-2 text-xs text-neutral-500">
-            Harga final untuk pelanggan
+        <p className="mt-2 text-sm text-neutral-500 sm:text-xs">
+            Harga final untuk pelanggan · ketuk Total untuk harga cantik
             <span className="hidden sm:inline"> · Staf: tahan ikon kunci 2 detik untuk keluar</span>
         </p>
     ) : (
-        <p className="mt-2 text-xs text-amber-800/80">Mode staf · ketuk Selesai untuk keluar</p>
+        <p className="mt-2 text-sm text-amber-800/80 sm:text-xs">Mode staf · ketuk Selesai untuk keluar</p>
     );
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm md:items-center md:p-8"
+            className="fixed inset-0 z-50 flex max-md:items-stretch md:items-center md:justify-center bg-black/50 backdrop-blur-sm md:p-8"
             role="dialog"
             aria-modal="true"
             aria-label="Rincian perhitungan harga"
             onClick={locked ? undefined : onClose}
         >
             <div
-                className="flex flex-col w-full min-h-[100dvh] max-h-[100dvh] md:min-h-0 md:max-h-[min(42rem,92vh)] md:max-w-4xl overflow-hidden bg-white shadow-2xl rounded-t-2xl md:rounded-xl select-none [-webkit-touch-callout:none] text-neutral-800"
+                className="grid w-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-white text-neutral-800 shadow-2xl select-none rounded-t-2xl [-webkit-touch-callout:none] max-md:h-svh max-md:max-h-svh md:max-h-[min(42rem,92vh)] md:max-w-4xl md:rounded-xl"
                 onClick={(e) => e.stopPropagation()}
                 onContextMenu={(e) => e.preventDefault()}
             >
-                <header className="flex items-center justify-between gap-5 shrink-0 px-5 py-5 border-b border-neutral-200 sm:px-8 sm:py-6">
+                <header className="flex shrink-0 items-center justify-between gap-5 border-b border-neutral-200 px-5 py-5 sm:px-8 sm:py-6">
                     <div className="flex items-center gap-4 min-w-0 flex-1">
                         <BrandLogo variant="dark" className="h-9 w-auto shrink-0 md:h-10" />
                         <div className="min-w-0 pt-0.5 hidden xl:block">
@@ -371,8 +568,8 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                     />
                 </header>
 
-                <div className="flex flex-col flex-1 min-h-0 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">
-                    <div className="min-w-0 pt-0.5 mb-5 xl:hidden">
+                <div className="min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain touch-pan-y px-5 py-4 [-webkit-overflow-scrolling:touch] sm:px-8 sm:py-6">
+                    <div className="mb-4 min-w-0 pt-0.5 xl:hidden">
                         <h2
                             id="customer-modal-title"
                             className="text-xl font-normal tracking-tight text-neutral-900 sm:text-2xl"
@@ -382,30 +579,32 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                         {staffHint}
                     </div>
 
-                    <div className="grid flex-1 gap-6 min-w-0 md:grid-cols-5 md:gap-8">
-                        <div className={`min-w-0 space-y-4 ${showSummary ? 'md:col-span-3' : 'md:col-span-5'}`}>
+                    <div className="grid min-w-0 gap-4 md:grid-cols-5 md:items-start md:gap-8">
+                        <div className={`min-w-0 space-y-3 ${showSummary ? 'md:col-span-3' : 'md:col-span-5'}`}>
                             {invoiceBody}
                             <button
                                 type="button"
                                 onClick={() => setShowSummary((v) => !v)}
                                 aria-expanded={showSummary}
-                                className="w-full py-3 text-base font-medium rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 touch-manipulation"
+                                className="w-full touch-manipulation rounded-lg border border-neutral-200 bg-neutral-50 py-2.5 text-base font-medium text-neutral-700 hover:bg-neutral-100"
                             >
                                 {showSummary ? 'Sembunyikan Rincian' : 'Tampilkan Rincian'}
                             </button>
                         </div>
                         {showSummary ? (
-                            <div className="flex flex-col justify-center min-w-0 md:col-span-2">{invoiceSummary}</div>
+                            <div className="min-w-0 border-t border-neutral-100 pt-4 md:col-span-2 md:border-t-0 md:pt-0 md:flex md:flex-col md:justify-center">
+                                {invoiceSummary}
+                            </div>
                         ) : null}
                     </div>
                 </div>
 
-                <footer className="shrink-0 px-5 py-4 border-t border-neutral-200 bg-neutral-50/80 sm:px-8">
+                <footer className="relative z-10 shrink-0 border-t border-neutral-200 bg-white px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.06)] sm:px-8">
                     {!locked ? (
                         <button
                             type="button"
                             onClick={onClose}
-                            className="w-full py-3 text-sm font-medium text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 touch-manipulation"
+                            className="w-full touch-manipulation rounded-lg bg-neutral-900 py-3.5 text-base font-medium text-white hover:bg-neutral-800"
                         >
                             Selesai
                         </button>
@@ -617,7 +816,7 @@ export default function CalculatePage() {
                                                         onClick={() => selectRow(row)}
                                                         className={`border-b border-neutral-100 last:border-0 cursor-pointer transition-colors touch-manipulation ${
                                                             selected
-                                                                ? 'bg-neutral-900 ring-1 ring-inset ring-neutral-900'
+                                                                ? 'bg-emerald-900 ring-1 ring-inset ring-neutral-900'
                                                                 : 'hover:bg-neutral-50 active:bg-neutral-100'
                                                         }`}
                                                     >
@@ -668,7 +867,7 @@ export default function CalculatePage() {
                                                         onClick={() => setAdditionalPercent(active ? null : pct)}
                                                         className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors touch-manipulation ${
                                                             active
-                                                                ? 'bg-neutral-900 text-white border-neutral-900'
+                                                                ? 'bg-emerald-900 text-white border-neutral-900'
                                                                 : 'text-neutral-700 border-neutral-200 bg-white hover:border-neutral-400 hover:bg-neutral-100'
                                                         }`}
                                                     >
