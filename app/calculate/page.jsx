@@ -114,12 +114,14 @@ function InvoiceLine({ label, value, variant = 'default' }) {
 
     return (
         <div
-            className={`flex items-start justify-between gap-6 px-4 py-3.5 ${
+            className={`flex items-start justify-between gap-3 px-3 py-3 sm:gap-6 sm:px-4 sm:py-3.5 ${
                 variant === 'total' ? 'bg-neutral-50' : ''
             }`}
         >
-            <span className={`min-w-0 leading-snug ${labelClass}`}>{label}</span>
-            <span className={`shrink-0 tabular-nums text-right leading-snug ${valueClass}`}>{value}</span>
+            <span className={`min-w-0 flex-1 leading-snug ${labelClass}`}>{label}</span>
+            <span className={`shrink-0 max-w-[55%] tabular-nums text-right leading-snug sm:max-w-none ${valueClass}`}>
+                {value}
+            </span>
         </div>
     );
 }
@@ -240,19 +242,36 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
         </div>
     );
 
+    const discountSummary =
+        stacked && additionalPercent != null
+            ? `diskon ${row.percent}% lalu ${additionalPercent}%`
+            : `diskon ${row.percent}%`;
+
     const invoiceSummary = (
-        <div className="space-y-4">
-            <div className="px-4 py-3 text-sm text-center rounded-lg bg-neutral-50 border border-neutral-200 text-neutral-600">
-                {formatRupiah(baseAmount)}
-                <span className="mx-2 text-neutral-400">→</span>
-                <span className="font-semibold text-neutral-900">{formatRupiah(finalPrice)}</span>
+        <div className="min-w-0 space-y-4">
+            <div className="min-w-0">
+                {/* <p className="text-sm font-medium text-neutral-800">Dari mana angka ini?</p> */}
+                <p className="mt-1 mb-3 text-xs leading-relaxed text-neutral-500">
+                    Harga awal dari input staf, lalu harga akhir setelah {discountSummary}.
+                </p>
+                <div className="w-full min-w-0 px-3 py-3 rounded-lg border sm:px-4 sm:py-3 bg-neutral-50 border-neutral-200">
+                    <div className="flex flex-col items-center gap-1 text-center sm:flex-row sm:justify-center sm:gap-2 text-neutral-600">
+                        <span className="max-w-full text-xs tabular-nums break-all sm:text-sm">{formatRupiah(baseAmount)}</span>
+                        <span className="text-neutral-400 shrink-0" aria-hidden="true">
+                            →
+                        </span>
+                        <span className="max-w-full text-xs font-semibold tabular-nums break-all sm:text-sm text-neutral-900">
+                            {formatRupiah(finalPrice)}
+                        </span>
+                    </div>
+                </div>
             </div>
 
             {totalHemat != null && totalHemat > 0 && (
-                <div className="px-4 py-4 rounded-lg border border-blue-100 bg-blue-50/80">
-                    <div className="flex items-center justify-between gap-4">
+                <div className="w-full min-w-0 px-3 py-3 rounded-lg border sm:px-4 sm:py-4 border-blue-100 bg-blue-50/80">
+                    <div className="flex flex-col gap-1 min-w-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                         <span className="text-sm font-medium text-blue-900">Total hemat</span>
-                        <span className="text-xl font-semibold tabular-nums text-blue-700">
+                        <span className="text-lg font-semibold tabular-nums break-all sm:text-right sm:text-xl text-blue-700">
                             {formatRupiah(totalHemat)}
                         </span>
                     </div>
@@ -280,7 +299,7 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
             onClick={locked ? undefined : onClose}
         >
             <div
-                className="flex flex-col w-full min-h-[100dvh] max-h-[100dvh] md:min-h-0 md:max-h-[min(42rem,92vh)] md:max-w-3xl overflow-hidden bg-white shadow-2xl rounded-t-2xl md:rounded-xl select-none [-webkit-touch-callout:none] text-neutral-800"
+                className="flex flex-col w-full min-h-[100dvh] max-h-[100dvh] md:min-h-0 md:max-h-[min(42rem,92vh)] md:max-w-4xl overflow-hidden bg-white shadow-2xl rounded-t-2xl md:rounded-xl select-none [-webkit-touch-callout:none] text-neutral-800"
                 onClick={(e) => e.stopPropagation()}
                 onContextMenu={(e) => e.preventDefault()}
             >
@@ -317,9 +336,9 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
                         {staffHint}
                     </div>
                    
-                    <div className="grid flex-1 gap-6 md:grid-cols-5 md:gap-8">
-                        <div className="md:col-span-3">{invoiceBody}</div>
-                        <div className="flex flex-col justify-center md:col-span-2">{invoiceSummary}</div>
+                    <div className="grid flex-1 gap-6 min-w-0 md:grid-cols-5 md:gap-8">
+                        <div className="min-w-0 md:col-span-3">{invoiceBody}</div>
+                        <div className="flex flex-col justify-center min-w-0 md:col-span-2">{invoiceSummary}</div>
                     </div>
                 </div>
 
