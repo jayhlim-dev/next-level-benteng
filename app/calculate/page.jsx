@@ -1,7 +1,10 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { RapaportShell } from '../../components/rapaport-shell';
+import { BrandLogo } from '../../components/brand-logo';
+import { CALC_COVER_BG } from '../../lib/hero-assets';
 import {
     digitsFromRupiahInput,
     normalizeDigitInput,
@@ -44,25 +47,32 @@ function CustomerLockButton({ locked, unlockProgress, onPointerDown, onPointerUp
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference * (1 - unlockProgress / 100);
 
+    const stopPress = (e) => {
+        e.preventDefault();
+    };
+
     return (
         <button
             type="button"
-            onClick={(e) => e.preventDefault()}
-            onPointerDown={onPointerDown}
-            onPointerUp={onPointerUp}
+            onClick={stopPress}
+            onContextMenu={stopPress}
+            onPointerDown={(e) => {
+                stopPress(e);
+                onPointerDown(e);
+            }}
+            onPointerUp={(e) => {
+                stopPress(e);
+                onPointerUp(e);
+            }}
             onPointerLeave={onPointerUp}
             onPointerCancel={onPointerUp}
-            className={`relative flex items-center justify-center w-12 h-12 rounded-full shrink-0 touch-manipulation transition-colors ${
+            className={`relative flex select-none items-center justify-center w-12 h-12 rounded-full shrink-0 touch-none transition-colors [-webkit-touch-callout:none] ${
                 locked
-                    ? 'text-neutral-300 bg-neutral-800/90 border border-neutral-700/90'
-                    : 'text-amber-200/90 bg-neutral-900 border border-amber-800/40 hover:bg-amber-950/30'
+                    ? 'text-neutral-600 bg-neutral-100 border border-neutral-200'
+                    : 'text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100'
             }`}
-            aria-label={
-                locked
-                    ? 'Terkunci. Tahan 2 detik untuk buka kunci.'
-                    : 'Terbuka. Ketuk cepat untuk kunci lagi.'
-            }
-            title={locked ? 'Staf: tahan 2 detik untuk buka' : 'Staf: ketuk cepat untuk kunci'}
+            aria-label={locked ? 'Terkunci. Tahan 2 detik untuk buka kunci.' : 'Terbuka. ketuk kunci lagi.'}
+            title={locked ? 'Staf: tahan 2 detik untuk buka' : 'Staf: ketuk kunci'}
         >
             <svg
                 className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none"
@@ -86,17 +96,30 @@ function CustomerLockButton({ locked, unlockProgress, onPointerDown, onPointerUp
             </svg>
             {locked ? <LockIcon /> : <UnlockIcon />}
             {locked && unlockProgress === 0 && (
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400/90 ring-2 ring-neutral-950" />
+                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
             )}
         </button>
     );
 }
 
-function CustomerModalRow({ label, value, valueClass = 'text-white' }) {
+function InvoiceLine({ label, value, variant = 'default' }) {
+    const valueClass =
+        variant === 'discount'
+            ? 'text-neutral-600'
+            : variant === 'total'
+              ? 'text-lg font-semibold text-neutral-900 sm:text-xl'
+              : 'text-neutral-900 font-medium';
+
+    const labelClass = variant === 'total' ? 'text-sm font-semibold text-neutral-900' : 'text-sm text-neutral-600';
+
     return (
-        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl bg-neutral-900/50 border border-neutral-800/90">
-            <span className="text-[11px] uppercase tracking-wider text-neutral-300 shrink-0 leading-snug">{label}</span>
-            <span className={`text-base font-medium tabular-nums text-right leading-tight ${valueClass}`}>{value}</span>
+        <div
+            className={`flex items-start justify-between gap-6 px-4 py-3.5 ${
+                variant === 'total' ? 'bg-neutral-50' : ''
+            }`}
+        >
+            <span className={`min-w-0 leading-snug ${labelClass}`}>{label}</span>
+            <span className={`shrink-0 tabular-nums text-right leading-snug ${valueClass}`}>{value}</span>
         </div>
     );
 }
@@ -133,6 +156,8 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
         return () => {
             document.removeEventListener('keydown', onKey);
             document.body.style.overflow = '';
+            document.body.style.userSelect = '';
+            document.body.style.webkitUserSelect = '';
             clearUnlockHold();
         };
     }, [onClose, locked, clearUnlockHold]);
@@ -152,12 +177,26 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
         }, UNLOCK_HOLD_MS);
     };
 
-    const handleLockPointerDown = () => {
+    const blockPageSelection = useCallback(() => {
+        document.body.style.userSelect = 'none';
+        document.body.style.webkitUserSelect = 'none';
+    }, []);
+
+    const restorePageSelection = useCallback(() => {
+        document.body.style.userSelect = '';
+        document.body.style.webkitUserSelect = '';
+    }, []);
+
+    const handleLockPointerDown = (e) => {
+        e.preventDefault();
+        blockPageSelection();
         pointerDownAtRef.current = Date.now();
         if (locked) startUnlockHold();
     };
 
     const handleLockPointerUp = () => {
+        restorePageSelection();
+
         if (justUnlockedViaHoldRef.current) {
             justUnlockedViaHoldRef.current = false;
             clearUnlockHold();
@@ -183,188 +222,122 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
     const finalPrice = stacked?.finalPrice ?? row.price;
     const totalHemat = calcTotalHemat(baseAmount, finalPrice);
 
-    const breakdownRows = (
-        <>
-            <CustomerModalRow label="Harga awal" value={formatRupiah(baseAmount)} />
-            <CustomerModalRow
-                label={`Potongan ${row.percent}%`}
-                value={`− ${formatRupiah(row.savings)}`}
-                valueClass="text-amber-200"
-            />
+    const invoiceBody = (
+        <div className="overflow-hidden border rounded-lg border-neutral-200 divide-y divide-neutral-100">
+            <InvoiceLine label="Harga awal" value={formatRupiah(baseAmount)} />
+            <InvoiceLine label={`Diskon ${row.percent}%`} value={`− ${formatRupiah(row.savings)}`} variant="discount" />
             {stacked ? (
                 <>
-                    <CustomerModalRow
-                        label={`Setelah diskon ${row.percent}%`}
-                        value={formatRupiah(row.price)}
-                    />
-                    <CustomerModalRow
-                        label={`Potongan ${additionalPercent}% dari ${formatRupiah(row.price)}`}
+                    <InvoiceLine label={`Subtotal setelah diskon ${row.percent}%`} value={formatRupiah(row.price)} />
+                    <InvoiceLine
+                        label={`Diskon ${additionalPercent}% dari ${formatRupiah(row.price)}`}
                         value={`− ${formatRupiah(stacked.additionalSavings)}`}
-                        valueClass="text-amber-200"
+                        variant="discount"
                     />
                 </>
             ) : null}
-            <div className="flex items-center justify-between gap-4 px-4 py-3.5 mt-1 rounded-xl border border-emerald-900/50 bg-emerald-950/25 md:py-4">
-                <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 md:text-xs">
-                    Harga akhir
-                </span>
-                <span className="text-lg font-semibold tabular-nums text-emerald-300 md:text-2xl">
-                    {formatRupiah(finalPrice)}
-                </span>
+            <InvoiceLine label="Total" value={formatRupiah(finalPrice)} variant="total" />
+        </div>
+    );
+
+    const invoiceSummary = (
+        <div className="space-y-4">
+            <div className="px-4 py-3 text-sm text-center rounded-lg bg-neutral-50 border border-neutral-200 text-neutral-600">
+                {formatRupiah(baseAmount)}
+                <span className="mx-2 text-neutral-400">→</span>
+                <span className="font-semibold text-neutral-900">{formatRupiah(finalPrice)}</span>
             </div>
-        </>
+
+            {totalHemat != null && totalHemat > 0 && (
+                <div className="px-4 py-4 rounded-lg border border-blue-100 bg-blue-50/80">
+                    <div className="flex items-center justify-between gap-4">
+                        <span className="text-sm font-medium text-blue-900">Total hemat</span>
+                        <span className="text-xl font-semibold tabular-nums text-blue-700">
+                            {formatRupiah(totalHemat)}
+                        </span>
+                    </div>
+                    <p className="mt-1.5 text-xs text-blue-800/70">Potongan dari harga awal</p>
+                </div>
+            )}
+        </div>
+    );
+
+    const staffHint = locked ? (
+        <p className="mt-2 text-xs text-neutral-500">
+            Harga final untuk pelanggan
+            <span className="hidden sm:inline"> · Staf: tahan ikon kunci 2 detik untuk keluar</span>
+        </p>
+    ) : (
+        <p className="mt-2 text-xs text-amber-800/80">Mode staf · ketuk Selesai untuk keluar</p>
     );
 
     return (
         <div
-            className="fixed inset-0 z-50 flex justify-center bg-black/70 backdrop-blur-sm items-end md:items-center md:p-8"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm md:items-center md:p-8"
             role="dialog"
             aria-modal="true"
             aria-label="Rincian perhitungan harga"
             onClick={locked ? undefined : onClose}
         >
-            {/* Mobile: full-screen bottom sheet */}
             <div
-                className="flex md:hidden flex-col w-full min-h-[100dvh] max-h-[100dvh] overflow-hidden bg-neutral-950 shadow-2xl rounded-t-2xl"
+                className="flex flex-col w-full min-h-[100dvh] max-h-[100dvh] md:min-h-0 md:max-h-[min(42rem,92vh)] md:max-w-3xl overflow-hidden bg-white shadow-2xl rounded-t-2xl md:rounded-xl select-none [-webkit-touch-callout:none] text-neutral-800"
                 onClick={(e) => e.stopPropagation()}
+                onContextMenu={(e) => e.preventDefault()}
             >
-                <header className="flex items-start justify-between gap-5 shrink-0 px-5 py-5 border-b border-neutral-800/60">
-                    <div className="min-w-0 pt-0.5">
-                        <p className="text-[11px] font-medium tracking-[0.2em] uppercase text-neutral-500">
-                            Rincian harga
-                        </p>
+                <header className="flex items-center justify-between gap-5 shrink-0 px-5 py-5 border-b border-neutral-200 sm:px-8 sm:py-6">
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <BrandLogo variant="dark" className="h-9 w-auto shrink-0 md:h-10" />
+                        <div className="min-w-0 pt-0.5 hidden xl:block">
+                            <h2
+                                id="customer-modal-title"
+                                className="text-xl font-normal tracking-tight text-neutral-900 sm:text-2xl"
+                            >
+                                Rincian harga
+                            </h2>
+                            {staffHint}
+                        </div>
+                    </div>
+                    <CustomerLockButton
+                        locked={locked}
+                        unlockProgress={unlockProgress}
+                        onPointerDown={handleLockPointerDown}
+                        onPointerUp={handleLockPointerUp}
+                    />
+                </header>
+
+                <div className="flex flex-col flex-1 min-h-0 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">
+                   
+                    <div className="min-w-0 pt-0.5 mb-5 xl:hidden">
                         <h2
                             id="customer-modal-title"
-                            className="mt-1.5 text-xl font-semibold tracking-tight text-white"
+                            className="text-xl font-normal tracking-tight text-neutral-900 sm:text-2xl"
                         >
-                            Perhitungan
-                        </h2>
-                        {locked ? (
-                            <>
-                                <p className="mt-2 text-xs text-neutral-500">
-                                    Harga final untuk Anda
-                                </p>
-                                <p className="mt-1 text-[10px] text-neutral-600">
-                                    Staf: tahan ikon kunci 2 detik untuk keluar
-                                </p>
-                            </>
-                        ) : (
-                            <p className="mt-2 text-xs text-amber-200/70">
-                                Mode staf · ketuk Selesai di bawah untuk keluar
-                            </p>
-                        )}
-                    </div>
-                    <CustomerLockButton
-                        locked={locked}
-                        unlockProgress={unlockProgress}
-                        onPointerDown={handleLockPointerDown}
-                        onPointerUp={handleLockPointerUp}
-                    />
-                </header>
-
-                <div className="flex flex-col flex-1 min-h-0">
-                    <div className="flex flex-col flex-1 min-h-0 justify-center px-5 py-4">
-                        <div className="flex flex-col w-full max-w-sm gap-2.5 mx-auto">{breakdownRows}</div>
-                    </div>
-
-                    <div className="shrink-0 px-5 pb-6 pt-2 space-y-3">
-                        <p className="px-4 py-3 text-sm text-center rounded-xl bg-neutral-900/80 text-neutral-400">
-                            {formatRupiah(baseAmount)} →{' '}
-                            <span className="font-medium text-emerald-300">{formatRupiah(finalPrice)}</span>
-                        </p>
-
-                        {totalHemat != null && totalHemat > 0 && (
-                            <div className="px-4 py-3.5 rounded-xl border border-sky-900/40 bg-sky-950/20">
-                                <div className="flex items-center justify-between gap-4">
-                                    <span className="text-[11px] uppercase tracking-wider text-sky-200/90">
-                                        Total hemat
-                                    </span>
-                                    <span className="text-lg font-semibold tabular-nums text-sky-300">
-                                        {formatRupiah(totalHemat)}
-                                    </span>
-                                </div>
-                                <p className="mt-2 text-xs text-neutral-500">Potongan dari harga awal</p>
-                            </div>
-                        )}
-
-                        {!locked && (
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="w-full py-3.5 text-sm font-semibold text-black bg-white rounded-full hover:bg-neutral-200 touch-manipulation"
-                            >
-                                Selesai
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Desktop: centered wide card */}
-            <div
-                className="hidden md:flex md:flex-col w-full max-w-3xl max-h-[min(40rem,90vh)] overflow-hidden border rounded-2xl border-neutral-700 bg-neutral-950 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <header className="flex items-start justify-between gap-6 shrink-0 px-8 py-6 border-b border-neutral-800/60">
-                    <div className="min-w-0">
-                        <p className="text-xs font-medium tracking-[0.2em] uppercase text-neutral-500">
                             Rincian harga
-                        </p>
-                        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-                            Perhitungan harga
                         </h2>
-                        {locked ? (
-                            <p className="mt-2 text-sm text-neutral-500">
-                                Harga final untuk pelanggan · Staf: tahan ikon kunci 2 detik untuk keluar
-                            </p>
-                        ) : (
-                            <p className="mt-2 text-sm text-amber-200/70">
-                                Mode staf · klik Selesai atau di luar modal untuk keluar
-                            </p>
-                        )}
+                        {staffHint}
                     </div>
-                    <CustomerLockButton
-                        locked={locked}
-                        unlockProgress={unlockProgress}
-                        onPointerDown={handleLockPointerDown}
-                        onPointerUp={handleLockPointerUp}
-                    />
-                </header>
-
-                <div className="grid flex-1 min-h-0 grid-cols-2 gap-8 px-8 py-6 overflow-y-auto">
-                    <div className="flex flex-col gap-3">{breakdownRows}</div>
-
-                    <div className="flex flex-col justify-center gap-4">
-                        <p className="px-5 py-4 text-base text-center rounded-xl bg-neutral-900/80 text-neutral-400">
-                            {formatRupiah(baseAmount)} →{' '}
-                            <span className="font-semibold text-emerald-300">{formatRupiah(finalPrice)}</span>
-                        </p>
-
-                        {totalHemat != null && totalHemat > 0 && (
-                            <div className="px-5 py-5 rounded-xl border border-sky-900/40 bg-sky-950/20">
-                                <div className="flex items-center justify-between gap-4">
-                                    <span className="text-xs uppercase tracking-wider text-sky-200/90">
-                                        Total hemat
-                                    </span>
-                                    <span className="text-2xl font-semibold tabular-nums text-sky-300">
-                                        {formatRupiah(totalHemat)}
-                                    </span>
-                                </div>
-                                <p className="mt-2 text-sm text-neutral-500">Potongan dari harga awal</p>
-                            </div>
-                        )}
-
-                        {!locked && (
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="w-full py-3.5 text-sm font-semibold text-black bg-white rounded-full hover:bg-neutral-200"
-                            >
-                                Selesai
-                            </button>
-                        )}
+                   
+                    <div className="grid flex-1 gap-6 md:grid-cols-5 md:gap-8">
+                        <div className="md:col-span-3">{invoiceBody}</div>
+                        <div className="flex flex-col justify-center md:col-span-2">{invoiceSummary}</div>
                     </div>
                 </div>
+
+                <footer className="shrink-0 px-5 py-4 border-t border-neutral-200 bg-neutral-50/80 sm:px-8">
+                    {!locked ? (
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="w-full py-3 text-sm font-medium text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 touch-manipulation"
+                        >
+                            Selesai
+                        </button>
+                    ) : (
+                        <p className="text-center text-[11px] text-neutral-400 sm:hidden">
+                            Staf: tahan ikon kunci 2 detik untuk keluar
+                        </p>
+                    )}
+                </footer>
             </div>
         </div>
     );
@@ -373,13 +346,24 @@ function CustomerPriceModal({ row, baseAmount, additionalPercent, onClose }) {
 const KEYPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '0', '⌫'];
 
 const displayClass =
-    'w-full min-w-0 px-5 py-4 text-3xl font-light tracking-wide text-right text-white border rounded-xl border-neutral-700 bg-black font-mono tabular-nums';
+    'w-full min-w-0 px-5 py-4 text-3xl font-light tracking-wide text-right text-neutral-900 border rounded-xl border-neutral-200 bg-white font-mono tabular-nums shadow-sm';
 
 const keyClass =
-    'py-4 text-xl font-medium text-white transition border rounded-xl border-neutral-700 bg-neutral-900 hover:bg-neutral-800 active:scale-[0.98] touch-manipulation min-h-[52px]';
+    'py-4 text-xl font-medium text-neutral-800 transition border rounded-xl border-neutral-200 bg-neutral-50 hover:bg-white active:scale-[0.98] touch-manipulation min-h-[52px] shadow-sm';
 
 const quickZeroClass =
-    'py-3 text-sm font-semibold text-sky-200 transition border rounded-xl border-sky-900/50 bg-sky-950/30 hover:bg-sky-950/50 active:scale-[0.98] touch-manipulation min-h-[48px]';
+    'py-3 text-sm font-semibold text-neutral-700 transition border rounded-xl border-neutral-200 bg-white hover:bg-neutral-50 active:scale-[0.98] touch-manipulation min-h-[48px] shadow-sm';
+
+const panelClass = 'p-6 border rounded-2xl border-white/70 bg-white/95 text-neutral-900 shadow-xl backdrop-blur-sm';
+
+function CalculatePageBackground() {
+    return (
+        <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden>
+            <Image src={CALC_COVER_BG} alt="" fill priority unoptimized className="object-cover scale-110 blur-lg" />
+            <div className="absolute inset-0 bg-black/40" />
+        </div>
+    );
+}
 
 export default function CalculatePage() {
     const [rawDigits, setRawDigits] = useState('');
@@ -391,7 +375,7 @@ export default function CalculatePage() {
 
     const displayValue = rawDigits ? formatRupiahDigitsFromRaw(rawDigits) : '';
 
-    const canAdd000 = canAppendZeros(rawDigits, 3);
+    const canAdd00 = canAppendZeros(rawDigits, 2);
     const canAdd000000 = canAppendZeros(rawDigits, 6);
 
     const discountRows = useMemo(() => buildRupiahDiscountRows(baseAmount), [baseAmount]);
@@ -433,14 +417,6 @@ export default function CalculatePage() {
             setRawDigits((prev) => prev.slice(0, -1));
             return;
         }
-        if (key === '+000') {
-            appendZeros(3);
-            return;
-        }
-        if (key === '+000000') {
-            appendZeros(6);
-            return;
-        }
         appendDigit(key);
     };
 
@@ -456,258 +432,259 @@ export default function CalculatePage() {
     };
 
     return (
-        <RapaportShell
-            title="Price Calculator"
-            subtitle="Atur diskon di panel kanan, lalu tampilkan rincian ke pelanggan lewat modal."
-        >
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10">
-                <section className="p-6 border rounded-2xl border-neutral-800 bg-neutral-950/50">
-                    <p className="mb-4 text-xs font-semibold tracking-widest uppercase text-neutral-500">
-                        Harga (Rp)
-                    </p>
+        <>
+            <CalculatePageBackground />
+            <RapaportShell
+                coverPage
+                shellClassName="relative z-10 bg-transparent"
+                title="Price Calculator"
+                subtitle="Atur diskon di panel kanan, lalu tampilkan rincian ke pelanggan lewat modal."
+            >
+                <div className="relative z-10 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10">
+                    <section className={panelClass}>
+                        <p className="mb-4 text-xs font-semibold tracking-widest uppercase text-neutral-500">
+                            Harga (Rp)
+                        </p>
 
-                    <label className="block mb-2 text-sm text-neutral-400">Masukkan harga</label>
-                    <div className="relative mb-4">
-                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl text-neutral-500 pointer-events-none">
-                            Rp
-                        </span>
-                        <input
-                            type="text"
-                            inputMode="numeric"
-                            value={displayValue}
-                            onChange={handleDisplayChange}
-                            placeholder="0"
-                            className={`${displayClass} pl-14`}
-                            aria-label="Harga dalam Rupiah"
-                        />
-                    </div>
+                        <label className="block mb-2 text-sm text-neutral-600">Masukkan harga</label>
+                        <div className="relative mb-4">
+                            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl text-neutral-400 pointer-events-none">
+                                Rp
+                            </span>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={displayValue}
+                                onChange={handleDisplayChange}
+                                placeholder="0"
+                                className={`${displayClass} pl-14`}
+                                aria-label="Harga dalam Rupiah"
+                            />
+                        </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                        {KEYPAD.map((key) => (
+                        <div className="grid grid-cols-3 gap-2">
+                            {KEYPAD.map((key) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => handleKey(key)}
+                                    className={`${keyClass} ${
+                                        key === 'C'
+                                            ? 'text-amber-800 border-amber-200 bg-amber-50 hover:bg-amber-100'
+                                            : key === '⌫'
+                                              ? 'text-neutral-500'
+                                              : ''
+                                    }`}
+                                >
+                                    {key}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
                             <button
-                                key={key}
                                 type="button"
-                                onClick={() => handleKey(key)}
-                                className={`${keyClass} ${
-                                    key === 'C'
-                                        ? 'text-amber-300 border-amber-900/50 bg-amber-950/30 hover:bg-amber-950/50'
-                                        : key === '⌫'
-                                          ? 'text-neutral-400'
-                                          : ''
-                                }`}
+                                onClick={() => appendZeros(2)}
+                                disabled={!canAdd00}
+                                className={`${quickZeroClass} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white`}
+                                title={canAdd00 ? 'Tambah 2 nol (×100)' : `Maksimal ${MAX_INPUT_DIGITS} digit`}
                             >
-                                {key}
+                                00
                             </button>
-                        ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                        <button
-                            type="button"
-                            onClick={() => handleKey('+000')}
-                            disabled={!canAdd000}
-                            className={`${quickZeroClass} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-sky-950/30`}
-                            title={
-                                canAdd000
-                                    ? 'Tambah 3 nol (×1.000)'
-                                    : `Maksimal ${MAX_INPUT_DIGITS} digit`
-                            }
-                        >
-                            +000
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleKey('+000000')}
-                            disabled={!canAdd000000}
-                            className={`${quickZeroClass} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-sky-950/30`}
-                            title={
-                                canAdd000000
-                                    ? 'Tambah 6 nol (×1.000.000)'
-                                    : `Maksimal ${MAX_INPUT_DIGITS} digit`
-                            }
-                        >
-                            +000000
-                        </button>
-                    </div>
-                    <p className="mt-4 text-xs text-neutral-600">
-                        +000 / +000000 menambah nol di belakang angka. Panel kanan untuk diskon (internal).
-                    </p>
-                </section>
+                            <button
+                                type="button"
+                                onClick={() => appendZeros(6)}
+                                disabled={!canAdd000000}
+                                className={`${quickZeroClass} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white`}
+                                title={
+                                    canAdd000000 ? 'Tambah 6 nol (×1.000.000)' : `Maksimal ${MAX_INPUT_DIGITS} digit`
+                                }
+                            >
+                                000.000
+                            </button>
+                        </div>
+                        <p className="mt-4 text-xs text-neutral-500">
+                            00 / 000.000 menambah nol di belakang angka. Panel kanan untuk diskon (internal).
+                        </p>
+                    </section>
 
-                <section className="p-6 border rounded-2xl border-neutral-800 bg-gradient-to-br from-neutral-900 to-black min-w-0">
-                    <p className="mb-2 text-xs font-semibold tracking-widest uppercase text-neutral-500">
-                        Diskon
-                    </p>
-                    <p className="mb-6 text-sm text-neutral-400">
-                        Pilih diskon utama, tambah diskon kedua jika perlu, lalu tampilkan ke pelanggan
-                    </p>
+                    <section className={`${panelClass} min-w-0`}>
+                        <p className="mb-2 text-xs font-semibold tracking-widest uppercase text-neutral-500">Diskon</p>
+                        <p className="mb-6 text-sm text-neutral-600">
+                            Pilih diskon utama, tambah diskon kedua jika perlu, lalu tampilkan ke pelanggan
+                        </p>
 
-                    {baseAmount != null ? (
-                        <>
-                            <div className="p-5 mb-6 border rounded-xl border-neutral-700 bg-black/50">
-                                <p className="text-xs uppercase tracking-wide text-neutral-500">
-                                    Harga awal
-                                </p>
-                                <p className="mt-1 text-3xl font-light text-white break-words sm:text-4xl">
-                                    {formatRupiah(baseAmount)}
-                                </p>
-                            </div>
-
-                            <div className="overflow-x-auto rounded-xl border border-neutral-800">
-                                <table className="w-full min-w-[300px] text-sm">
-                                    <thead>
-                                        <tr className="text-left border-b border-neutral-800 bg-neutral-950/80">
-                                            <th className="px-4 py-3 font-medium text-neutral-400">
-                                                Diskon
-                                            </th>
-                                            <th className="px-4 py-3 font-medium text-neutral-400">
-                                                Harga
-                                            </th>
-                                            <th className="px-4 py-3 font-medium text-neutral-400">
-                                                Hemat
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {discountRows.map((row) => {
-                                            const selected = activeRow?.percent === row.percent;
-                                            return (
-                                                <tr
-                                                    key={row.percent}
-                                                    onClick={() => selectRow(row)}
-                                                    className={`border-b border-neutral-900 last:border-0 cursor-pointer transition-colors touch-manipulation ${
-                                                        selected
-                                                            ? 'bg-white/10 ring-1 ring-inset ring-white/20'
-                                                            : 'hover:bg-neutral-900/60 active:bg-neutral-900/80'
-                                                    }`}
-                                                >
-                                                    <td className="px-4 py-3 font-medium whitespace-nowrap text-white">
-                                                        −{row.percent}%
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-emerald-300">
-                                                        {formatRupiah(row.price)}
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-neutral-400">
-                                                        {formatRupiah(row.savings)}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {activeRow && (
-                                <div className="p-4 mt-6 border rounded-xl border-amber-900/30 bg-amber-950/10">
-                                    <p className="text-xs font-semibold tracking-widest uppercase text-amber-200/80">
-                                        Diskon Tambahan (Additional)
+                        {baseAmount != null ? (
+                            <>
+                                <div className="p-5 mb-6 border rounded-xl border-neutral-200 bg-neutral-50">
+                                    <p className="text-xs uppercase tracking-wide text-neutral-500">Harga awal</p>
+                                    <p className="mt-1 text-3xl font-light text-neutral-900 break-words sm:text-4xl">
+                                        {formatRupiah(baseAmount)}
                                     </p>
-                                    {/* <p className="mt-1 mb-3 text-xs leading-relaxed text-amber-200/50">
+                                </div>
+
+                                <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+                                    <table className="w-full min-w-[300px] text-sm">
+                                        <thead>
+                                            <tr className="text-left border-b border-neutral-200 bg-neutral-100">
+                                                <th className="px-4 py-3 font-medium text-neutral-600">Diskon</th>
+                                                <th className="px-4 py-3 font-medium text-neutral-600">Harga</th>
+                                                <th className="px-4 py-3 font-medium text-neutral-600">Hemat</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {discountRows.map((row) => {
+                                                const selected = activeRow?.percent === row.percent;
+                                                return (
+                                                    <tr
+                                                        key={row.percent}
+                                                        onClick={() => selectRow(row)}
+                                                        className={`border-b border-neutral-100 last:border-0 cursor-pointer transition-colors touch-manipulation ${
+                                                            selected
+                                                                ? 'bg-neutral-900 ring-1 ring-inset ring-neutral-900'
+                                                                : 'hover:bg-neutral-50 active:bg-neutral-100'
+                                                        }`}
+                                                    >
+                                                        <td
+                                                            className={`px-4 py-3 font-medium whitespace-nowrap ${
+                                                                selected ? 'text-white' : 'text-neutral-800'
+                                                            }`}
+                                                        >
+                                                            −{row.percent}%
+                                                        </td>
+                                                        <td
+                                                            className={`px-4 py-3 whitespace-nowrap ${
+                                                                selected ? 'text-emerald-200' : 'text-emerald-700'
+                                                            }`}
+                                                        >
+                                                            {formatRupiah(row.price)}
+                                                        </td>
+                                                        <td
+                                                            className={`px-4 py-3 whitespace-nowrap ${
+                                                                selected ? 'text-neutral-300' : 'text-neutral-500'
+                                                            }`}
+                                                        >
+                                                            {formatRupiah(row.savings)}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {activeRow && (
+                                    <div className="p-4 mt-6 border rounded-xl border-neutral-200 bg-neutral-50">
+                                        <p className="text-xs font-semibold tracking-widest uppercase text-neutral-600">
+                                            Diskon Tambahan (Additional)
+                                        </p>
+                                        {/* <p className="mt-1 mb-3 text-xs leading-relaxed text-amber-200/50">
                                         Tidak ditampilkan ke pelanggan. Dari harga setelah −
                                         {activeRow.percent}% ({formatRupiah(activeRow.price)})
                                     </p> */}
-                                    <div className="flex flex-wrap gap-2 mt-4">
-                                        {DISCOUNT_STEPS.map((pct) => {
-                                            const active = additionalPercent === pct;
-                                            return (
-                                                <button
-                                                    key={pct}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setAdditionalPercent(active ? null : pct)
-                                                    }
-                                                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors touch-manipulation ${
-                                                        active
-                                                            ? 'bg-amber-200 text-black border-amber-200'
-                                                            : 'text-neutral-300 border-neutral-700 hover:border-amber-800/50 hover:bg-amber-950/30'
-                                                    }`}
-                                                >
-                                                    −{pct}%
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
+                                        <div className="flex flex-wrap gap-2 mt-4">
+                                            {DISCOUNT_STEPS.map((pct) => {
+                                                const active = additionalPercent === pct;
+                                                return (
+                                                    <button
+                                                        key={pct}
+                                                        type="button"
+                                                        onClick={() => setAdditionalPercent(active ? null : pct)}
+                                                        className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors touch-manipulation ${
+                                                            active
+                                                                ? 'bg-neutral-900 text-white border-neutral-900'
+                                                                : 'text-neutral-700 border-neutral-200 bg-white hover:border-neutral-400 hover:bg-neutral-100'
+                                                        }`}
+                                                    >
+                                                        −{pct}%
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
 
-                                    {previewFinalPrice != null && (
-                                        <div className="p-3 mt-4 space-y-2 text-sm rounded-lg border border-neutral-800/80 bg-neutral-950/60">
-                                            <p className="text-xs font-semibold tracking-wider uppercase text-neutral-500">
-                                                Preview perhitungan
-                                            </p>
-                                            <div className="flex justify-between gap-3 tabular-nums">
-                                                <span className="text-neutral-400">Harga awal</span>
-                                                <span className="text-white">{formatRupiah(baseAmount)}</span>
-                                            </div>
-                                            <div className="flex justify-between gap-3 tabular-nums text-amber-200/90">
-                                                <span>−{activeRow.percent}%</span>
-                                                <span>− {formatRupiah(activeRow.savings)}</span>
-                                            </div>
-                                            <div className="flex justify-between gap-3 tabular-nums">
-                                                <span className="text-neutral-400">
-                                                    Setelah −{activeRow.percent}%
-                                                </span>
-                                                <span className="font-medium text-white">
-                                                    {formatRupiah(activeRow.price)}
-                                                </span>
-                                            </div>
-                                            {stacked && additionalPercent != null ? (
-                                                <>
-                                                    <div className="flex justify-between gap-3 tabular-nums text-amber-200/90">
-                                                        <span className="text-left leading-snug">
-                                                            −{additionalPercent}% dari{' '}
-                                                            {formatRupiah(activeRow.price)}
-                                                        </span>
-                                                        <span className="shrink-0">
-                                                            − {formatRupiah(stacked.additionalSavings)}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex justify-between gap-3 pt-2 tabular-nums border-t border-neutral-800">
-                                                        <span className="font-medium text-neutral-200">
-                                                            Harga akhir
-                                                        </span>
-                                                        <span className="font-semibold text-emerald-300">
-                                                            {formatRupiah(previewFinalPrice)}
-                                                        </span>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <div className="flex justify-between gap-3 pt-2 tabular-nums border-t border-neutral-800">
-                                                    <span className="font-medium text-neutral-200">
-                                                        Harga akhir
+                                        {previewFinalPrice != null && (
+                                            <div className="p-3 mt-4 space-y-2 text-sm rounded-lg border border-neutral-200 bg-white">
+                                                <p className="text-xs font-semibold tracking-wider uppercase text-neutral-500">
+                                                    Preview perhitungan
+                                                </p>
+                                                <div className="flex justify-between gap-3 tabular-nums">
+                                                    <span className="text-neutral-600">Harga awal</span>
+                                                    <span className="text-neutral-900">{formatRupiah(baseAmount)}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-3 tabular-nums text-amber-800">
+                                                    <span>−{activeRow.percent}%</span>
+                                                    <span>− {formatRupiah(activeRow.savings)}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-3 tabular-nums">
+                                                    <span className="text-neutral-600">
+                                                        Setelah −{activeRow.percent}%
                                                     </span>
-                                                    <span className="font-semibold text-emerald-300">
+                                                    <span className="font-medium text-neutral-900">
                                                         {formatRupiah(activeRow.price)}
                                                     </span>
                                                 </div>
-                                            )}
-                                        </div>
-                                    )}
+                                                {stacked && additionalPercent != null ? (
+                                                    <>
+                                                        <div className="flex justify-between gap-3 tabular-nums text-amber-800">
+                                                            <span className="text-left leading-snug">
+                                                                −{additionalPercent}% dari{' '}
+                                                                {formatRupiah(activeRow.price)}
+                                                            </span>
+                                                            <span className="shrink-0">
+                                                                − {formatRupiah(stacked.additionalSavings)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between gap-3 pt-2 tabular-nums border-t border-neutral-200">
+                                                            <span className="font-medium text-neutral-800">
+                                                                Harga akhir
+                                                            </span>
+                                                            <span className="font-semibold text-emerald-700">
+                                                                {formatRupiah(previewFinalPrice)}
+                                                            </span>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className="flex justify-between gap-3 pt-2 tabular-nums border-t border-neutral-200">
+                                                        <span className="font-medium text-neutral-800">
+                                                            Harga akhir
+                                                        </span>
+                                                        <span className="font-semibold text-emerald-700">
+                                                            {formatRupiah(activeRow.price)}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
 
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCustomerModal(true)}
-                                        className="w-full px-6 py-3.5 mt-4 text-sm font-semibold text-black bg-white rounded-full hover:bg-neutral-200 touch-manipulation"
-                                    >
-                                        Tampilkan ke pelanggan
-                                    </button>
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-16 text-center text-neutral-500">
-                            <p className="text-sm">Masukkan harga di kiri untuk melihat perhitungan</p>
-                            <p className="mt-2 text-xs text-neutral-600">Misalnya Rp 1.000.000</p>
-                        </div>
-                    )}
-                </section>
-            </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCustomerModal(true)}
+                                            className="w-full px-6 py-3.5 mt-4 text-sm font-semibold text-white bg-neutral-900 rounded-full hover:bg-neutral-800 touch-manipulation"
+                                        >
+                                            Tampilkan ke pelanggan
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-16 text-center text-neutral-500">
+                                <p className="text-sm text-neutral-600">
+                                    Masukkan harga di kiri untuk melihat perhitungan
+                                </p>
+                                <p className="mt-2 text-xs text-neutral-400">Misalnya Rp 1.000.000</p>
+                            </div>
+                        )}
+                    </section>
+                </div>
 
-            {showCustomerModal && activeRow && (
-                <CustomerPriceModal
-                    row={activeRow}
-                    baseAmount={baseAmount}
-                    additionalPercent={additionalPercent}
-                    onClose={() => setShowCustomerModal(false)}
-                />
-            )}
-        </RapaportShell>
+                {showCustomerModal && activeRow && (
+                    <CustomerPriceModal
+                        row={activeRow}
+                        baseAmount={baseAmount}
+                        additionalPercent={additionalPercent}
+                        onClose={() => setShowCustomerModal(false)}
+                    />
+                )}
+            </RapaportShell>
+        </>
     );
 }
